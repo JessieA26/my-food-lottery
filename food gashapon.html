@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What to Eat Today? - 日式夢幻泡泡糖扭蛋選餐機</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Fredoka & Zen Maru Gothic -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', 'Fredoka', sans-serif;
+            background: linear-gradient(135deg, #ffeef8 0%, #e0f2fe 50%, #f3e8ff 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        /* 夢幻背景浮動氣泡 */
+        .bg-bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(4px);
+            animation: floatUp 14s infinite linear;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(105vh) scale(0.8) rotate(0deg); opacity: 0; }
+            20% { opacity: 0.7; }
+            80% { opacity: 0.7; }
+            100% { transform: translateY(-15vh) scale(1.2) rotate(360deg); opacity: 0; }
+        }
+
+        /* 泡泡糖扭蛋機機身 */
+        .gacha-machine {
+            position: relative;
+            filter: drop-shadow(0 20px 30px rgba(255, 182, 193, 0.4));
+        }
+
+        /* 圓頂玻璃球罩 */
+        .glass-dome {
+            background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.2) 60%, rgba(220, 235, 255, 0.35) 100%);
+            border: 6px solid #ffffff;
+            box-shadow: 
+                inset 0 10px 25px rgba(255, 255, 255, 0.9),
+                inset 0 -15px 25px rgba(0, 0, 0, 0.03),
+                0 12px 28px rgba(244, 114, 182, 0.25);
+            border-radius: 50% 50% 45% 45% / 55% 55% 40% 40%;
+            /* 強制圓形裁切，徹底隱藏所有內部超出與牆體邊線 */
+            clip-path: inset(0 round 50% 50% 45% 45% / 55% 55% 40% 40%);
+            overflow: hidden;
+            border-collapse: separate;
+        }
+
+        /* 復古彩虹頂蓋 */
+        .machine-cap {
+            background: linear-gradient(180deg, #ff80bf 0%, #ff529a 100%);
+            box-shadow: 0 6px 0 #d93d7c, inset 0 3px 6px rgba(255, 255, 255, 0.6);
+        }
+
+        /* 機身底座 */
+        .machine-body {
+            background: linear-gradient(180deg, #ff65a3 0%, #ff3b85 60%, #e6206d 100%);
+            box-shadow: 
+                0 12px 0 #b3124e,
+                inset 0 5px 12px rgba(255, 255, 255, 0.5),
+                0 15px 35px rgba(230, 32, 109, 0.35);
+        }
+
+        /* 旋鈕動畫 */
+        .crank-handle {
+            transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform-origin: center center;
+            box-shadow: 0 6px 0 #94a3b8, 0 10px 15px rgba(0,0,0,0.15);
+        }
+        .crank-handle.rotating {
+            transform: rotate(360deg);
+        }
+
+        /* 扭蛋球滑落托盤動畫 */
+        @keyframes rollOut {
+            0% { transform: translateY(-40px) scale(0.3) rotate(0deg); opacity: 0; }
+            50% { transform: translateY(10px) scale(1.1) rotate(180deg); opacity: 1; }
+            70% { transform: translateY(-5px) scale(0.95) rotate(270deg); }
+            100% { transform: translateY(0) scale(1) rotate(360deg); opacity: 1; }
+        }
+
+        .dropped-ball-anim {
+            animation: rollOut 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* 閃爍跳動效果 */
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,105,180,0.6)); }
+            50% { transform: scale(1.05); filter: drop-shadow(0 0 18px rgba(255,105,180,0.9)); }
+        }
+        .pulse-btn {
+            animation: pulseGlow 2.5s infinite ease-in-out;
+        }
+
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f472b6;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="relative flex flex-col items-center justify-between min-h-screen p-3 md:p-6 text-slate-800 select-none">
+
+    <!-- 背景動態夢幻氣泡 -->
+    <div id="bubbles-container" class="fixed inset-0 overflow-hidden pointer-events-none z-0"></div>
+
+    <!-- 頂部標題區 -->
+    <header class="relative z-10 text-center my-2 md:my-4">
+        <h1 class="text-3xl md:text-5xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 drop-shadow-sm">
+            What to Eat Today?
+        </h1>
+        <p class="text-xs md:text-sm text-slate-500 font-medium mt-1">今天午餐晚餐吃什麼？轉動扭蛋機讓運命為你決定！</p>
+    </header>
+
+    <!-- 主介面：扭蛋機 + 操作區 -->
+    <main class="relative z-10 w-full max-w-lg flex flex-col items-center my-auto">
+        
+        <!-- 扭蛋機整體 -->
+        <div class="gacha-machine w-full max-w-[340px] sm:max-w-[380px] flex flex-col items-center">
+            
+            <!-- 扭蛋機頂蓋 -->
+            <div class="machine-cap w-48 sm:w-56 h-10 sm:h-12 rounded-t-full flex items-center justify-center relative z-20 border-t-2 border-white/60">
+                <div class="w-12 h-3 bg-white/40 rounded-full"></div>
+            </div>
+
+            <!-- 透明玻璃腔體 (Matter.js Canvas 容器) -->
+            <div class="glass-dome w-full h-[280px] sm:h-[320px] relative overflow-hidden -mt-2 z-10 flex items-center justify-center">
+                <!-- 玻璃光澤反光層 -->
+                <div class="absolute top-4 left-6 w-16 h-32 bg-gradient-to-b from-white/60 to-transparent rounded-full transform -rotate-45 pointer-events-none z-30"></div>
+                <div class="absolute top-8 right-8 w-6 h-12 bg-white/40 rounded-full transform rotate-12 pointer-events-none z-30"></div>
+                
+                <!-- Matter.js Canvas 掛載點 -->
+                <div id="canvas-container" class="w-full h-full relative z-20"></div>
+            </div>
+
+            <!-- 機身底座 -->
+            <div class="machine-body w-[94%] h-[200px] sm:h-[220px] rounded-b-[45px] -mt-4 relative z-20 flex flex-col items-center justify-between p-4 border-t-4 border-pink-300/40">
+                
+                <!-- 金屬投幣/旋鈕組件 -->
+                <div class="flex items-center justify-between w-full px-6 mt-1">
+                    <!-- 幣孔造型 -->
+                    <div class="w-10 h-14 bg-slate-800 rounded-lg border-2 border-amber-300 flex flex-col items-center justify-center shadow-inner">
+                        <div class="w-2 h-7 bg-amber-400 rounded-full shadow-md"></div>
+                        <span class="text-[9px] text-amber-300 font-bold mt-1">100円</span>
+                    </div>
+
+                    <!-- 旋轉手把 (Clickable) -->
+                    <button id="crank-btn" onclick="playGashapon()" class="group relative flex flex-col items-center justify-center focus:outline-none" title="點擊轉動扭蛋機">
+                        <div class="w-20 h-20 sm:w-22 sm:h-22 bg-gradient-to-b from-slate-200 to-slate-400 rounded-full p-2 border-4 border-white shadow-lg flex items-center justify-center">
+                            <div id="crank-handle" class="crank-handle w-full h-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 rounded-full flex items-center justify-center border-2 border-amber-600">
+                                <div class="w-12 h-3 bg-amber-700/60 rounded-full transform rotate-45"></div>
+                                <div class="w-3 h-12 bg-amber-700/60 rounded-full transform rotate-45 absolute"></div>
+                                <div class="w-6 h-6 bg-white rounded-full border-2 border-amber-500 shadow-inner"></div>
+                            </div>
+                        </div>
+                        <span class="text-[11px] font-extrabold text-white bg-pink-600/80 px-2 py-0.5 rounded-full mt-1 shadow-sm group-hover:scale-105 transition-transform">PUSH / TURN</span>
+                    </button>
+
+                    <!-- 品牌標籤 -->
+                    <div class="w-10 h-14 bg-pink-700/40 rounded-lg border border-white/30 flex items-center justify-center text-center p-1">
+                        <i class="fa-solid fa-cookie-bite text-pink-200 text-lg animate-bounce"></i>
+                    </div>
+                </div>
+
+                <!-- 扭蛋出口托盤 -->
+                <div class="w-3/4 h-16 sm:h-20 bg-slate-900/80 rounded-t-2xl border-x-4 border-t-4 border-slate-700 shadow-inner relative flex items-center justify-center overflow-visible">
+                    <!-- 出口陰影擋板 -->
+                    <div class="absolute inset-x-0 top-0 h-4 bg-black/60 rounded-t-xl"></div>
+                    
+                    <!-- 掉落出來的扭蛋放置區 -->
+                    <div id="exit-tray" class="relative z-30 flex items-center justify-center w-full h-full cursor-pointer">
+                        <span id="tray-hint" class="text-xs text-slate-400 font-medium animate-pulse">轉動旋鈕出球...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主按鈕與菜單設置按鈕 -->
+        <div class="flex items-center gap-3 mt-6 w-full px-4">
+            <button onclick="playGashapon()" class="pulse-btn flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 text-white font-extrabold text-base md:text-lg shadow-lg hover:shadow-pink-400/50 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 border-2 border-white/50">
+                <i class="fa-solid fa-dice text-xl"></i>
+                <span>幫我選餐！</span>
+            </button>
+            <button onclick="openMenuModal()" class="py-3.5 px-4 rounded-2xl bg-white/80 hover:bg-white text-slate-700 font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 border border-white/80">
+                <i class="fa-solid fa-utensils text-pink-500"></i>
+                <span>菜單管理</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="relative z-10 text-center text-xs text-slate-400 my-2">
+        <p>✨ 盲盒扭蛋機 · 獨家滋味隨心決定 ✨</p>
+    </footer>
+
+    <!-- 彈窗 1：扭蛋揭曉結果餐券 Modal -->
+    <div id="result-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300 p-4">
+        <div id="result-card" class="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden transform scale-90 transition-all duration-300 border-4 border-pink-300">
+            <!-- 頂部餐券裝飾 Header -->
+            <div class="bg-gradient-to-r from-pink-400 via-rose-400 to-purple-400 p-6 text-center relative text-white">
+                <button onclick="closeResultModal()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="w-16 h-16 mx-auto bg-white/20 rounded-full flex items-center justify-center text-3xl mb-2 backdrop-blur-md border border-white/40 shadow-inner">
+                    <span id="ticket-emoji">🍱</span>
+                </div>
+                <p class="text-xs font-bold tracking-widest text-pink-100 uppercase">Today's Food Choice</p>
+                <h3 class="text-xs text-white/90 font-medium">今日美食決定餐券</h3>
+            </div>
+
+            <!-- 餐券主體內容 -->
+            <div class="p-6 text-center space-y-4 bg-gradient-to-b from-white to-pink-50/50">
+                <div>
+                    <span id="ticket-category" class="inline-block px-3 py-1 rounded-full bg-pink-100 text-pink-600 text-xs font-bold mb-2">
+                        日式料理
+                    </span>
+                    <h2 id="ticket-title" class="text-3xl font-black text-slate-800 tracking-wide">
+                        鮭魚握壽司
+                    </h2>
+                </div>
+
+                <!-- 隨機食慾評語 -->
+                <div class="p-3 bg-white rounded-xl border border-pink-100 shadow-sm">
+                    <p id="ticket-quote" class="text-xs text-slate-600 italic">
+                        「一口咬下的鮮甜與滿足，這是今天最棒的選擇！」
+                    </p>
+                </div>
+
+                <!-- 按鈕操作 -->
+                <div class="pt-2 flex gap-2">
+                    <button onclick="playGashapon(); closeResultModal();" class="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>不喜歡，再抽一次</span>
+                    </button>
+                    <button onclick="acceptFoodChoice()" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-check"></i>
+                        <span>就吃這個！</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗 2：菜單管理 Modal -->
+    <div id="menu-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300 p-4">
+        <div id="menu-card" class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden transform scale-90 transition-all duration-300 flex flex-col max-h-[85vh]">
+            <!-- Header -->
+            <div class="p-4 sm:p-5 bg-gradient-to-r from-pink-500 to-purple-500 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-xl"></i>
+                    <h3 class="font-extrabold text-lg">自訂食物清單</h3>
+                </div>
+                <button onclick="closeMenuModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+                <!-- 新增食物 Form -->
+                <form id="add-food-form" onsubmit="handleAddFood(event)" class="flex gap-2">
+                    <input type="text" id="food-input" placeholder="輸入美食名稱 (如: 豚骨拉麵)" required max="12"
+                           class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-pink-500 text-sm">
+                    <button type="submit" class="px-4 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-xl text-sm transition-colors shrink-0 flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>新增</span>
+                    </button>
+                </form>
+
+                <!-- 現有食物列表 -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">目前菜單 (<span id="food-count">0</span>)</span>
+                        <button onclick="resetDefaultFoods()" class="text-xs text-pink-500 font-bold hover:underline">恢復預設菜單</button>
+                    </div>
+                    <div id="food-list" class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                        <!-- 動態插入食物項目 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 text-right">
+                <button onclick="closeMenuModal()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm transition-colors">
+                    完成並關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自訂訊息提示 Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold shadow-xl transition-all duration-300 opacity-0 pointer-events-none transform translate-y-4 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-pink-400"></i>
+        <span id="toast-msg">提示訊息</span>
+    </div>
+
+    <!-- 腳本區域 -->
+    <script>
+        /* ----------------------------------------------------
+           1. 預設菜單與食物數據 (含 Icon、類別與評語)
+        ---------------------------------------------------- */
+        const DEFAULT_FOODS = [
+            { name: "日式壽司", category: "日式料理", emoji: "🍣" },
+            { name: "義式披薩", category: "異國料理", emoji: "🍕" },
+            { name: "紅燒牛肉麵", category: "傳統麵食", emoji: "🍜" },
+            { name: "美式漢堡", category: "美式速食", emoji: "🍔" },
+            { name: "韓式炸雞", category: "韓式風味", emoji: "🍗" },
+            { name: "日式拉麵", category: "日式料理", emoji: "🍜" },
+            { name: "台式滷肉飯", category: "在地小吃", emoji: "🍚" },
+            { name: "泰式酸辣湯", category: "南洋風味", emoji: "🍲" },
+            { name: "鮮肉小籠包", category: "中式點心", emoji: "🥟" },
+            { name: "健康沙拉盒", category: "輕食健身", emoji: "🥗" },
+            { name: "印度咖哩飯", category: "香料咖哩", emoji: "🍛" },
+            { name: "草莓提拉米蘇", category: "甜點下午茶", emoji: "🍰" }
+        ];
+
+        const FOOD_QUOTES = [
+            "一口咬下的鮮甜與滿足，這是今天最棒的選擇！",
+            "熱氣騰騰的美味，瞬間治癒你一整天的疲憊。",
+            "香氣四溢，光是想像就讓人忍不住流口水了！",
+            "口感豐富有層次，給味蕾帶來一場絕妙的旅行。",
+            "不用再猶豫了，今天就是享受這道美食的完美日子！",
+            "經典不敗的美味，吃下一口滿滿都是幸福感。"
+        ];
+
+        // 扭蛋球 3D 質感漸層顏色池 (完全不含文字，純色彩球)
+        const BALL_COLORS = [
+            { top: '#ff9a9e', bottom: '#fecfef' }, // 柔粉
+            { top: '#a1c4fd', bottom: '#c2e9fb' }, // 天藍
+            { top: '#ffd1ff', bottom: '#fad0c4' }, // 夢幻紫
+            { top: '#84fab0', bottom: '#8fd3f4' }, // 薄荷綠
+            { top: '#fccb90', bottom: '#d7aa8d' }, // 鵝黃橙
+            { top: '#f093fb', bottom: '#f5576c' }, // 玫紅
+            { top: '#4facfe', bottom: '#00f2fe' }  // 寶藍
+        ];
+
+        let foodList = [];
+        let isProcessing = false;
+        let selectedFoodResult = null;
+
+        /* ----------------------------------------------------
+           2. Matter.js 物理引擎設置 (球體懸浮與動態)
+        ---------------------------------------------------- */
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Composite = Matter.Composite,
+              Body = Matter.Body,
+              Vector = Matter.Vector;
+
+        let engine, render, runner;
+        let ballBodies = [];
+        let canvasContainer = document.getElementById('canvas-container');
+
+        function initPhysics() {
+            // 清空容器內殘留內容
+            canvasContainer.innerHTML = '';
+
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            const dpr = window.devicePixelRatio || 1;
+
+            // 建立物理引擎 (低重力，呈現飄浮滾動感)
+            engine = Engine.create({
+                gravity: { x: 0, y: 0.6 }
+            });
+
+            // 建立渲染器 (關閉 wireframes，顯式設置 transparent 背景)
+            render = Render.create({
+                element: canvasContainer,
+                engine: engine,
+                options: {
+                    width: width,
+                    height: height,
+                    wireframes: false,
+                    background: 'transparent',
+                    pixelRatio: dpr
+                }
+            });
+
+            // 調整 Canvas 實際解析度與 CSS 尺寸
+            render.canvas.style.width = width + 'px';
+            render.canvas.style.height = height + 'px';
+
+            // 建立巨大且完全隱形的邊界牆 (延伸超出圓形玻璃罩外側)
+            const wallThickness = 200;
+            const wallOptions = { 
+                isStatic: true, 
+                restitution: 0.85, 
+                friction: 0.05,
+                render: { visible: false } // 完全透明隱形
+            };
+
+            // 底部、左、右、頂部牆體擴展至畫面外
+            const ground = Bodies.rectangle(width / 2, height + wallThickness / 2 - 10, width * 3, wallThickness, wallOptions);
+            const leftWall = Bodies.rectangle(-wallThickness / 2 + 5, height / 2, wallThickness, height * 3, wallOptions);
+            const rightWall = Bodies.rectangle(width + wallThickness / 2 - 5, height / 2, wallThickness, height * 3, wallOptions);
+            const roof = Bodies.rectangle(width / 2, -wallThickness / 2, width * 3, wallThickness, wallOptions);
+
+            // 底部左右斜向擋板（將球引導向中央）
+            const leftSlope = Bodies.rectangle(10, height - 15, width * 0.65, 30, {
+                isStatic: true, 
+                angle: Math.PI / 5, 
+                restitution: 0.85,
+                render: { visible: false }
+            });
+            const rightSlope = Bodies.rectangle(width - 10, height - 15, width * 0.65, 30, {
+                isStatic: true, 
+                angle: -Math.PI / 5, 
+                restitution: 0.85,
+                render: { visible: false }
+            });
+
+            Composite.add(engine.world, [ground, leftWall, rightWall, roof, leftSlope, rightSlope]);
+
+            Render.run(render);
+            runner = Runner.create();
+            Runner.run(runner, engine);
+
+            // 自訂的高清圓潤 3D 光澤盲盒球體渲染器
+            Matter.Events.on(render, 'afterRender', function() {
+                const ctx = render.context;
+                
+                ballBodies.forEach(body => {
+                    const { x, y } = body.position;
+                    const radius = body.circleRadius;
+                    const colorScheme = body.colorScheme || BALL_COLORS[0];
+
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(body.angle);
+
+                    // 1. 柔和球體同色系 Glow 光暈 (取代黑色陰影，避免產生黑邊)
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius + 1, 0, Math.PI * 2);
+                    ctx.fillStyle = colorScheme.top + '22';
+                    ctx.fill();
+
+                    // 2. 完美無瑕 3D 球形漸層
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                    const gradient = ctx.createRadialGradient(-radius * 0.3, -radius * 0.35, radius * 0.05, 0, 0, radius);
+                    gradient.addColorStop(0, '#ffffff');
+                    gradient.addColorStop(0.25, colorScheme.top);
+                    gradient.addColorStop(1, colorScheme.bottom);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+
+                    // 3. 日式扭蛋中間白半透明分隔線
+                    ctx.beginPath();
+                    ctx.moveTo(-radius * 0.96, 0);
+                    ctx.lineTo(radius * 0.96, 0);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.lineWidth = 2.2;
+                    ctx.stroke();
+
+                    // 4. 水晶般頂部高光
+                    ctx.beginPath();
+                    ctx.ellipse(-radius * 0.35, -radius * 0.38, radius * 0.28, radius * 0.14, -Math.PI / 4, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                    ctx.fill();
+
+                    ctx.restore();
+                });
+            });
+
+            window.addEventListener('resize', handleResize);
+        }
+
+        function handleResize() {
+            if (!render) return;
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            const dpr = window.devicePixelRatio || 1;
+            
+            render.canvas.width = width * dpr;
+            render.canvas.height = height * dpr;
+            render.canvas.style.width = width + 'px';
+            render.canvas.style.height = height + 'px';
+        }
+
+        // 同步菜單數量至物理腔體內的球體
+        function syncPhysicsBalls() {
+            if (!engine) return;
+
+            // 清除現有球體
+            ballBodies.forEach(b => Composite.remove(engine.world, b));
+            ballBodies = [];
+
+            const width = canvasContainer.clientWidth || 300;
+            const height = canvasContainer.clientHeight || 300;
+
+            // 根據 foodList 數量建立對應的盲盒球體 (若菜單少則重複產生，保持視覺豐富)
+            const targetCount = Math.max(foodList.length, 12);
+            const radius = width < 340 ? 17 : 20;
+
+            for (let i = 0; i < targetCount; i++) {
+                const x = Math.random() * (width - 80) + 40;
+                const y = Math.random() * (height - 100) + 30;
+                
+                const ball = Bodies.circle(x, y, radius, {
+                    restitution: 0.85,
+                    friction: 0.05,
+                    density: 0.002,
+                    render: { visible: false } // 使用自訂 Events.on('afterRender') 繪製
+                });
+
+                // 隨機指派立體色彩
+                ball.colorScheme = BALL_COLORS[i % BALL_COLORS.length];
+                // 綁定對應美食資料 (或循環指派)
+                ball.foodData = foodList[i % foodList.length];
+
+                ballBodies.push(ball);
+                Composite.add(engine.world, ball);
+            }
+        }
+
+        /* ----------------------------------------------------
+           3. 扭蛋機核心動作 (旋鈕、擾動、扭蛋掉落)
+        ---------------------------------------------------- */
+        function playGashapon() {
+            if (isProcessing) return;
+            if (foodList.length === 0) {
+                showToast("菜單是空的，請先新增食物喔！");
+                openMenuModal();
+                return;
+            }
+
+            isProcessing = true;
+            const crankHandle = document.getElementById('crank-handle');
+            const exitTray = document.getElementById('exit-tray');
+
+            // 清空托盤
+            exitTray.innerHTML = `<span class="text-xs text-pink-400 font-bold animate-pulse">扭蛋滾落中...</span>`;
+
+            // 1. 旋鈕旋轉動畫
+            crankHandle.classList.add('rotating');
+            playAudioFeedback('crank');
+
+            // 2. 物理腔體內球體劇烈翻滾 (發射向上的力量)
+            ballBodies.forEach(ball => {
+                const forceX = (Math.random() - 0.5) * 0.08;
+                const forceY = -(Math.random() * 0.08 + 0.05);
+                Body.applyForce(ball, ball.position, { x: forceX, y: forceY });
+            });
+
+            // 3. 隨機選定美食結果
+            const randomIndex = Math.floor(Math.random() * foodList.length);
+            selectedFoodResult = foodList[randomIndex];
+
+            // 4. 動畫過渡：扭蛋球從出口滑落
+            setTimeout(() => {
+                crankHandle.classList.remove('rotating');
+                playAudioFeedback('drop');
+
+                // 產生掉落在托盤的實體扭蛋球
+                const randomColor = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)];
+                
+                exitTray.innerHTML = `
+                    <div onclick="openBallReveal()" class="dropped-ball-anim group relative w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-transform" style="background: radial-gradient(circle at 35% 25%, #ffffff 0%, ${randomColor.top} 40%, ${randomColor.bottom} 100%);">
+                        <div class="w-full h-1 bg-white/70 absolute inset-y-1/2 -translate-y-1/2"></div>
+                        <div class="w-4 h-4 bg-white rounded-full shadow-md z-10 border border-slate-200 flex items-center justify-center">
+                            <div class="w-1.5 h-1.5 bg-pink-500 rounded-full"></div>
+                        </div>
+                        <span class="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-300 text-slate-800 text-[10px] font-black px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap animate-bounce">
+                            點擊打開！
+                        </span>
+                    </div>
+                `;
+
+                showToast("扭蛋已滾落！快點擊開球揭曉！");
+                isProcessing = false;
+            }, 850);
+        }
+
+        // 點擊落下的扭蛋球 -> 開球特效 + 彈出餐券
+        function openBallReveal() {
+            playAudioFeedback('pop');
+
+            // 觸發彩色紙屑特效 (Confetti)
+            confetti({
+                particleCount: 80,
+                spread: 70,
+                origin: { y: 0.65 },
+                colors: ['#ff80bf', '#a1c4fd', '#ffd1ff', '#84fab0', '#fccb90']
+            });
+
+            // 填入 Modal 資料
+            document.getElementById('ticket-title').innerText = selectedFoodResult.name;
+            document.getElementById('ticket-category').innerText = selectedFoodResult.category || "自訂餐點";
+            document.getElementById('ticket-emoji').innerText = selectedFoodResult.emoji || "🍱";
+            document.getElementById('ticket-quote').innerText = `「${FOOD_QUOTES[Math.floor(Math.random() * FOOD_QUOTES.length)]}」`;
+
+            // 清空托盤提示
+            document.getElementById('exit-tray').innerHTML = `<span class="text-xs text-slate-400 font-medium">轉動旋鈕出球...</span>`;
+
+            // 顯示 Modal
+            const modal = document.getElementById('result-modal');
+            const card = document.getElementById('result-card');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            card.classList.remove('scale-90');
+            card.classList.add('scale-100');
+        }
+
+        function closeResultModal() {
+            const modal = document.getElementById('result-modal');
+            const card = document.getElementById('result-card');
+            card.classList.remove('scale-100');
+            card.classList.add('scale-90');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function acceptFoodChoice() {
+            closeResultModal();
+            showToast(`太棒了！今天就享用【${selectedFoodResult.name}】吧！祝您用餐愉快！`);
+        }
+
+        /* ----------------------------------------------------
+           4. 菜單管理與 localStorage 持久化
+        ---------------------------------------------------- */
+        function loadFoodList() {
+            const saved = localStorage.getItem('gashapon_food_list');
+            if (saved) {
+                try {
+                    foodList = JSON.parse(saved);
+                } catch(e) {
+                    foodList = [...DEFAULT_FOODS];
+                }
+            } else {
+                foodList = [...DEFAULT_FOODS];
+            }
+            renderFoodUI();
+            syncPhysicsBalls();
+        }
+
+        function saveFoodList() {
+            localStorage.setItem('gashapon_food_list', JSON.stringify(foodList));
+            renderFoodUI();
+            syncPhysicsBalls();
+        }
+
+        function renderFoodUI() {
+            const container = document.getElementById('food-list');
+            const countEl = document.getElementById('food-count');
+            countEl.innerText = foodList.length;
+
+            if (foodList.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">目前沒有食物項目，請新增食物！</div>`;
+                return;
+            }
+
+            container.innerHTML = foodList.map((item, index) => `
+                <div class="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-pink-50/50 rounded-xl border border-slate-100 transition-colors">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-lg">${item.emoji || '🍱'}</span>
+                        <div>
+                            <p class="text-xs font-bold text-slate-700">${escapeHtml(item.name)}</p>
+                            <span class="text-[10px] text-slate-400">${escapeHtml(item.category || '自訂餐點')}</span>
+                        </div>
+                    </div>
+                    <button onclick="removeFood(${index})" class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function handleAddFood(e) {
+            e.preventDefault();
+            const input = document.getElementById('food-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            if (foodList.some(item => item.name === val)) {
+                showToast("這道美食已經在菜單清單裡囉！");
+                return;
+            }
+
+            const emojis = ['🍱', '🍲', '🥗', '🍔', '🍕', '🍜', '🍛', '🥪', '🌮', '🥞'];
+            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+            foodList.push({
+                name: val,
+                category: "自訂餐點",
+                emoji: randomEmoji
+            });
+
+            input.value = '';
+            saveFoodList();
+            showToast(`已成功新增【${val}】！`);
+        }
+
+        function removeFood(index) {
+            if (foodList.length <= 1) {
+                showToast("菜單至少需要保留一項美食喔！");
+                return;
+            }
+            const removed = foodList.splice(index, 1);
+            saveFoodList();
+            showToast(`已刪除【${removed[0].name}】`);
+        }
+
+        function resetDefaultFoods() {
+            foodList = [...DEFAULT_FOODS];
+            saveFoodList();
+            showToast("已恢復為預設美食菜單！");
+        }
+
+        /* ----------------------------------------------------
+           5. 視窗 Modal 控制與輔助功能
+        ---------------------------------------------------- */
+        function openMenuModal() {
+            const modal = document.getElementById('menu-modal');
+            const card = document.getElementById('menu-card');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            card.classList.remove('scale-90');
+            card.classList.add('scale-100');
+        }
+
+        function closeMenuModal() {
+            const modal = document.getElementById('menu-modal');
+            const card = document.getElementById('menu-card');
+            card.classList.remove('scale-100');
+            card.classList.add('scale-90');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            toastMsg.innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+            }, 2500);
+        }
+
+        // Web Audio API 簡易音效合成器 (免外部音效檔)
+        function playAudioFeedback(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'crank') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.2);
+                } else if (type === 'drop') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } else if (type === 'pop') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.15);
+                }
+            } catch (e) {
+                // 忽略不支援 Web Audio 的情況
+            }
+        }
+
+        // 背景動態氣泡生成
+        function createBackgroundBubbles() {
+            const container = document.getElementById('bubbles-container');
+            const bubbleCount = 12;
+
+            for (let i = 0; i < bubbleCount; i++) {
+                const bubble = document.createElement('div');
+                bubble.className = 'bg-bubble';
+                const size = Math.random() * 40 + 20;
+                bubble.style.width = `${size}px`;
+                bubble.style.height = `${size}px`;
+                bubble.style.left = `${Math.random() * 100}%`;
+                bubble.style.animationDelay = `${Math.random() * 10}s`;
+                bubble.style.animationDuration = `${Math.random() * 8 + 10}s`;
+                container.appendChild(bubble);
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+
+        // 跨分頁 localStorage 自動同步
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'gashapon_food_list') {
+                loadFoodList();
+            }
+        });
+
+        // 頁面初始化
+        window.onload = function() {
+            createBackgroundBubbles();
+            initPhysics();
+            loadFoodList();
+        };
+    </script>
+</body>
+</html>
